@@ -39,7 +39,9 @@ const options = {
 
     servers: [
       {
-        url: "http://localhost:3000",
+        url: process.env.RENDER
+          ? "https://biblioteca-online-y7ek.onrender.com"
+          : "http://localhost:3000",
       },
     ],
   },
