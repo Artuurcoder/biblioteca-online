@@ -1,5 +1,7 @@
 require("dotenv").config();
 
+console.log("JWT_SECRET:", process.env.JWT_SECRET);
+
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -18,13 +20,30 @@ const options = {
       version: "1.0.0",
       description: "Documentação da API da Biblioteca Online",
     },
+
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+        },
+      },
+    },
+
+    security: [
+      {
+        bearerAuth: [],
+      },
+    ],
+
     servers: [
       {
         url: "http://localhost:3000",
       },
     ],
   },
-  apis: ["./src/app.js"],
+  apis: ["./biblioteca_online/src/app.js"],
 };
 
 const swaggerSpec = swaggerJsdoc(options);
@@ -57,13 +76,12 @@ function autenticarToken(req, res, next) {
 // Rota inicial
 /**
  * @swagger
- * paths:
- *   /:
- *     get:
- *       summary: Verifica se a API está funcionando
- *       responses:
- *         200:
- *           description: API funcionando
+ * /:
+ *   get:
+ *     summary: Verifica se a API está funcionando
+ *     responses:
+ *       200:
+ *         description: API funcionando
  */
 app.get("/", (req, res) => {
   res.send("Biblioteca Online funcionando!");
@@ -78,14 +96,33 @@ const livros = [
 // LISTAR TODOS OS LIVROS
 /**
  * @swagger
- * /livros:
+ * /livros/{id}:
  *   get:
- *     summary: Lista todos os livros
+ *     summary: Buscar livros
  *     tags:
  *       - Livros
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
  *     responses:
  *       200:
  *         description: Lista de livros retornada com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: integer
+ *                   titulo:
+ *                     type: string
+ *                   autor:
+ *                     type: string
  */
 app.get("/livros", (req, res) => {
   res.json(livros);
@@ -111,6 +148,25 @@ app.get("/livros/:id", (req, res) => {
  *     summary: Adiciona um novo livro
  *     tags:
  *       - Livros
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               id:
+ *                 type: integer
+ *               titulo:
+ *                 type: string
+ *               autor:
+ *                 type: string
+ *             required:
+ *               - id
+ *               - titulo
+ *               - autor
  *     responses:
  *       201:
  *         description: Livro cadastrado com sucesso
@@ -120,7 +176,7 @@ app.get("/livros/:id", (req, res) => {
  *         description: Token inválido
  */
 app.post("/livros", autenticarToken, (req, res) => {
-  const novoLivro = req.body;
+  const novoLivro = req.body || {};
 
   if (!novoLivro.id || !novoLivro.titulo || !novoLivro.autor) {
     return res.status(400).json({ erro: "Dados incompletos" });
@@ -144,11 +200,26 @@ app.post("/livros", autenticarToken, (req, res) => {
  *         required: true
  *         schema:
  *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               titulo:
+ *                 type: string
+ *               autor:
+ *                 type: string
  *     responses:
  *       200:
  *         description: Livro atualizado com sucesso
  *       404:
  *         description: Livro não encontrado
+ *       401:
+ *         description: Token não informado
+ *       403:
+ *         description: Token inválido
  */
 app.put("/livros/:id", autenticarToken, (req, res) => {
   const id = parseInt(req.params.id);
@@ -185,6 +256,10 @@ app.put("/livros/:id", autenticarToken, (req, res) => {
  *         description: Livro removido com sucesso
  *       404:
  *         description: Livro não encontrado
+ *       401:
+ *         description: Token não informado
+ *       403:
+ *         description: Token inválido
  */
 app.delete("/livros/:id", autenticarToken, (req, res) => {
   const id = parseInt(req.params.id);
@@ -215,6 +290,23 @@ const usuarios = [];
  *     summary: Cadastra um novo usuário
  *     tags:
  *       - Autenticação
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               nome:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               senha:
+ *                 type: string
+ *             required:
+ *               - nome
+ *               - email
+ *               - senha
  *     responses:
  *       201:
  *         description: Usuário cadastrado com sucesso
@@ -222,7 +314,7 @@ const usuarios = [];
  *         description: Dados inválidos
  */
 app.post("/register", async (req, res) => {
-  const { nome, email, senha } = req.body;
+  const { nome, email, senha } = req.body || {};
 
   if (!nome || !email || !senha) {
     return res.status(400).json({
@@ -257,11 +349,27 @@ app.post("/register", async (req, res) => {
 // LOGIN
 /**
  * @swagger
+/**
+ * @swagger
  * /login:
  *   post:
  *     summary: Realiza login do usuário
  *     tags:
  *       - Autenticação
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *               senha:
+ *                 type: string
+ *             required:
+ *               - email
+ *               - senha
  *     responses:
  *       200:
  *         description: Login realizado com sucesso
@@ -269,7 +377,7 @@ app.post("/register", async (req, res) => {
  *         description: Usuário ou senha inválidos
  */
 app.post("/login", async (req, res) => {
-  const { email, senha } = req.body;
+  const { email, senha } = req.body || {};
 
   const usuario = usuarios.find((u) => u.email === email);
 
