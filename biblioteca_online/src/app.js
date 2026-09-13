@@ -1,8 +1,11 @@
 require("dotenv").config();
 
-console.log("JWT_SECRET:", process.env.JWT_SECRET);
+const conectarBanco = require("./config/database");
+const Livro = require("../models/Livro");
+const Usuario = require("../models/Usuario");
 
 const express = require("express");
+const path = require("path");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const swaggerUi = require("swagger-ui-express");
@@ -12,13 +15,25 @@ const app = express();
 
 app.use(express.json());
 
+app.use(
+  express.static(
+    path.join(__dirname, "../public")
+  )
+);
+
+/* ======================================================
+   CONFIGURAÇÃO DO SWAGGER
+====================================================== */
+
 const options = {
   definition: {
     openapi: "3.0.0",
+
     info: {
       title: "API Biblioteca Online",
-      version: "1.0.0",
-      description: "Documentação da API da Biblioteca Online",
+      version: "2.0.0",
+      description:
+        "API da Biblioteca Online utilizando Node.js, Express, JWT e MongoDB",
     },
 
     components: {
@@ -31,26 +46,23 @@ const options = {
       },
     },
 
-    security: [
-      {
-        bearerAuth: [],
-      },
-    ],
-
     servers: [
       {
-        url: process.env.RENDER
-          ? "https://biblioteca-online-y7ek.onrender.com"
-          : "http://localhost:3000",
+        url: "http://localhost:3000",
       },
     ],
   },
+
   apis: ["./biblioteca_online/src/app.js"],
 };
 
 const swaggerSpec = swaggerJsdoc(options);
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+/* ======================================================
+   MIDDLEWARE DE AUTENTICAÇÃO
+====================================================== */
 
 function autenticarToken(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -63,44 +75,57 @@ function autenticarToken(req, res, next) {
 
   const token = authHeader.split(" ")[1];
 
-  jwt.verify(token, process.env.JWT_SECRET, (err, usuario) => {
-    if (err) {
+  if (!token) {
+    return res.status(401).json({
+      erro: "Token não informado",
+    });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (erro, usuario) => {
+    if (erro) {
       return res.status(403).json({
         erro: "Token inválido",
       });
     }
 
     req.usuario = usuario;
+
     next();
   });
 }
 
-// Rota inicial
+/* ======================================================
+   LIVROS
+====================================================== */
+
 /**
  * @swagger
- * /:
+ * /livros:
  *   get:
- *     summary: Verifica se a API está funcionando
+ *     summary: Lista todos os livros
+ *     tags:
+ *       - Livros
  *     responses:
  *       200:
- *         description: API funcionando
+ *         description: Lista de livros retornada com sucesso
  */
-app.get("/", (req, res) => {
-  res.send("Biblioteca Online funcionando!");
+app.get("/livros", async (req, res) => {
+  try {
+    const livros = await Livro.find();
+
+    res.json(livros);
+  } catch (erro) {
+    res.status(500).json({
+      erro: "Erro ao buscar livros",
+    });
+  }
 });
 
-// Lista de livros
-const livros = [
-  { id: 1, titulo: "Harry Potter e a Pedra Filosofal", autor: "J.K. Rowling" },
-  { id: 2, titulo: "O Senhor dos Anéis", autor: "J.R.R. Tolkien" },
-];
-
-// LISTAR TODOS OS LIVROS
 /**
  * @swagger
  * /livros/{id}:
  *   get:
- *     summary: Buscar livros
+ *     summary: Busca um livro pelo ID
  *     tags:
  *       - Livros
  *     parameters:
@@ -108,46 +133,36 @@ const livros = [
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *     responses:
  *       200:
- *         description: Lista de livros retornada com sucesso
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   id:
- *                     type: integer
- *                   titulo:
- *                     type: string
- *                   autor:
- *                     type: string
+ *         description: Livro encontrado
+ *       404:
+ *         description: Livro não encontrado
  */
-app.get("/livros", (req, res) => {
-  res.json(livros);
-});
+app.get("/livros/:id", async (req, res) => {
+  try {
+    const livro = await Livro.findById(req.params.id);
 
-// BUSCAR LIVRO POR ID
-app.get("/livros/:id", (req, res) => {
-  const id = parseInt(req.params.id);
-  const livro = livros.find((l) => l.id === id);
+    if (!livro) {
+      return res.status(404).json({
+        erro: "Livro não encontrado",
+      });
+    }
 
-  if (!livro) {
-    return res.status(404).json({ erro: "Livro não encontrado" });
+    res.json(livro);
+  } catch (erro) {
+    res.status(400).json({
+      erro: "ID inválido",
+    });
   }
-
-  res.json(livro);
 });
 
-// ADICIONAR LIVRO
 /**
  * @swagger
  * /livros:
  *   post:
- *     summary: Adiciona um novo livro
+ *     summary: Cadastra um novo livro
  *     tags:
  *       - Livros
  *     security:
@@ -159,36 +174,61 @@ app.get("/livros/:id", (req, res) => {
  *           schema:
  *             type: object
  *             properties:
- *               id:
- *                 type: integer
  *               titulo:
  *                 type: string
  *               autor:
  *                 type: string
+ *               categoria:
+ *                 type: string
+ *               ano_publicacao:
+ *                 type: integer
+ *               quantidade_total:
+ *                 type: integer
+ *               quantidade_disponivel:
+ *                 type: integer
  *             required:
- *               - id
  *               - titulo
  *               - autor
  *     responses:
  *       201:
  *         description: Livro cadastrado com sucesso
- *       401:
- *         description: Token não informado
- *       403:
- *         description: Token inválido
+ *       400:
+ *         description: Dados inválidos
  */
-app.post("/livros", autenticarToken, (req, res) => {
-  const novoLivro = req.body || {};
+app.post("/livros", autenticarToken, async (req, res) => {
+  try {
+    const {
+      titulo,
+      autor,
+      categoria,
+      ano_publicacao,
+      quantidade_total,
+      quantidade_disponivel,
+    } = req.body;
 
-  if (!novoLivro.id || !novoLivro.titulo || !novoLivro.autor) {
-    return res.status(400).json({ erro: "Dados incompletos" });
+    if (!titulo || !autor) {
+      return res.status(400).json({
+        erro: "Título e autor são obrigatórios",
+      });
+    }
+
+    const novoLivro = await Livro.create({
+      titulo,
+      autor,
+      categoria,
+      ano_publicacao,
+      quantidade_total,
+      quantidade_disponivel,
+    });
+
+    res.status(201).json(novoLivro);
+  } catch (erro) {
+    res.status(500).json({
+      erro: "Erro ao cadastrar livro",
+    });
   }
-
-  livros.push(novoLivro);
-  res.status(201).json(novoLivro);
 });
 
-// ATUALIZAR LIVRO
 /**
  * @swagger
  * /livros/{id}:
@@ -196,12 +236,14 @@ app.post("/livros", autenticarToken, (req, res) => {
  *     summary: Atualiza um livro
  *     tags:
  *       - Livros
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *     requestBody:
  *       required: true
  *       content:
@@ -213,33 +255,45 @@ app.post("/livros", autenticarToken, (req, res) => {
  *                 type: string
  *               autor:
  *                 type: string
+ *               categoria:
+ *                 type: string
+ *               ano_publicacao:
+ *                 type: integer
+ *               quantidade_total:
+ *                 type: integer
+ *               quantidade_disponivel:
+ *                 type: integer
  *     responses:
  *       200:
  *         description: Livro atualizado com sucesso
  *       404:
  *         description: Livro não encontrado
- *       401:
- *         description: Token não informado
- *       403:
- *         description: Token inválido
  */
-app.put("/livros/:id", autenticarToken, (req, res) => {
-  const id = parseInt(req.params.id);
-  const dados = req.body;
+app.put("/livros/:id", autenticarToken, async (req, res) => {
+  try {
+    const livro = await Livro.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
 
-  const livro = livros.find((l) => l.id === id);
+    if (!livro) {
+      return res.status(404).json({
+        erro: "Livro não encontrado",
+      });
+    }
 
-  if (!livro) {
-    return res.status(404).json({ erro: "Livro não encontrado" });
+    res.json(livro);
+  } catch (erro) {
+    res.status(400).json({
+      erro: "Erro ao atualizar livro",
+    });
   }
-
-  livro.titulo = dados.titulo;
-  livro.autor = dados.autor;
-
-  res.json(livro);
 });
 
-// DELETAR LIVRO
 /**
  * @swagger
  * /livros/{id}:
@@ -247,44 +301,44 @@ app.put("/livros/:id", autenticarToken, (req, res) => {
  *     summary: Remove um livro
  *     tags:
  *       - Livros
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *     responses:
  *       200:
  *         description: Livro removido com sucesso
  *       404:
  *         description: Livro não encontrado
- *       401:
- *         description: Token não informado
- *       403:
- *         description: Token inválido
  */
-app.delete("/livros/:id", autenticarToken, (req, res) => {
-  const id = parseInt(req.params.id);
+app.delete("/livros/:id", autenticarToken, async (req, res) => {
+  try {
+    const livro = await Livro.findByIdAndDelete(req.params.id);
 
-  const index = livros.findIndex((l) => l.id === id);
+    if (!livro) {
+      return res.status(404).json({
+        erro: "Livro não encontrado",
+      });
+    }
 
-  if (index === -1) {
-    return res.status(404).json({ erro: "Livro não encontrado" });
+    res.json({
+      mensagem: "Livro removido com sucesso",
+    });
+  } catch (erro) {
+    res.status(400).json({
+      erro: "Erro ao remover livro",
+    });
   }
-
-  livros.splice(index, 1);
-
-  res.json({
-    mensagem: "Livro removido com sucesso",
-    lista: livros,
-  });
 });
 
-// Lista de usuários
-// Lista de usuários
-const usuarios = [];
+/* ======================================================
+   USUÁRIOS
+====================================================== */
 
-// CADASTRAR USUÁRIO
 /**
  * @swagger
  * /register:
@@ -316,41 +370,43 @@ const usuarios = [];
  *         description: Dados inválidos
  */
 app.post("/register", async (req, res) => {
-  const { nome, email, senha } = req.body || {};
+  try {
+    const { nome, email, senha } = req.body || {};
 
-  if (!nome || !email || !senha) {
-    return res.status(400).json({
-      erro: "Todos os campos são obrigatórios",
+    if (!nome || !email || !senha) {
+      return res.status(400).json({
+        erro: "Todos os campos são obrigatórios",
+      });
+    }
+
+    const usuarioExiste = await Usuario.findOne({
+      email,
+    });
+
+    if (usuarioExiste) {
+      return res.status(400).json({
+        erro: "E-mail já cadastrado",
+      });
+    }
+
+    const senhaCriptografada = await bcrypt.hash(senha, 10);
+
+    await Usuario.create({
+      nome,
+      email,
+      senha: senhaCriptografada,
+    });
+
+    res.status(201).json({
+      mensagem: "Usuário cadastrado com sucesso",
+    });
+  } catch (erro) {
+    res.status(500).json({
+      erro: "Erro ao cadastrar usuário",
     });
   }
-
-  const usuarioExiste = usuarios.find((usuario) => usuario.email === email);
-
-  if (usuarioExiste) {
-    return res.status(400).json({
-      erro: "E-mail já cadastrado",
-    });
-  }
-
-  const senhaCriptografada = await bcrypt.hash(senha, 10);
-
-  const novoUsuario = {
-    id: usuarios.length + 1,
-    nome,
-    email,
-    senha: senhaCriptografada,
-  };
-
-  usuarios.push(novoUsuario);
-
-  res.status(201).json({
-    mensagem: "Usuário cadastrado com sucesso",
-  });
 });
 
-// LOGIN
-/**
- * @swagger
 /**
  * @swagger
  * /login:
@@ -379,47 +435,89 @@ app.post("/register", async (req, res) => {
  *         description: Usuário ou senha inválidos
  */
 app.post("/login", async (req, res) => {
-  const { email, senha } = req.body || {};
+  try {
+    const { email, senha } = req.body || {};
 
-  const usuario = usuarios.find((u) => u.email === email);
+    const usuario = await Usuario.findOne({
+      email,
+    });
 
-  if (!usuario) {
-    return res.status(401).json({
-      erro: "Usuário não encontrado",
+    if (!usuario) {
+      return res.status(401).json({
+        erro: "Usuário não encontrado",
+      });
+    }
+
+    const senhaValida = await bcrypt.compare(
+      senha,
+      usuario.senha
+    );
+
+    if (!senhaValida) {
+      return res.status(401).json({
+        erro: "Senha inválida",
+      });
+    }
+
+    const token = jwt.sign(
+      {
+        id: usuario._id,
+        email: usuario.email,
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "1h",
+      }
+    );
+
+    res.json({
+      mensagem: "Login realizado com sucesso",
+      token,
+    });
+  } catch (erro) {
+    res.status(500).json({
+      erro: "Erro ao realizar login",
     });
   }
+});
 
-  const senhaValida = await bcrypt.compare(senha, usuario.senha);
+/**
+ * @swagger
+ * /usuarios:
+ *   get:
+ *     summary: Lista os usuários cadastrados
+ *     tags:
+ *       - Usuários
+ *     responses:
+ *       200:
+ *         description: Usuários retornados com sucesso
+ */
+app.get("/usuarios", async (req, res) => {
+  try {
+    const usuarios = await Usuario.find().select("-senha");
 
-  if (!senhaValida) {
-    return res.status(401).json({
-      erro: "Senha inválida",
+    res.json(usuarios);
+  } catch (erro) {
+    res.status(500).json({
+      erro: "Erro ao buscar usuários",
     });
   }
+});
 
-  const token = jwt.sign(
-    {
-      id: usuario.id,
-      email: usuario.email,
-    },
-    process.env.JWT_SECRET,
-    {
-      expiresIn: "1h",
-    },
-  );
+/* ======================================================
+   INICIAR APLICAÇÃO
+====================================================== */
 
-  res.json({
-    mensagem: "Login realizado com sucesso",
-    token,
+const PORT = process.env.PORT || 3000;
+
+async function iniciarServidor() {
+  await conectarBanco();
+
+  app.listen(PORT, () => {
+    console.log(
+      `Servidor rodando em http://localhost:${PORT}`
+    );
   });
-});
+}
 
-// LISTAR USUÁRIOS
-app.get("/usuarios", (req, res) => {
-  res.json(usuarios);
-});
-
-// INICIAR SERVIDOR
-app.listen(3000, () => {
-  console.log("Servidor rodando em http://localhost:3000");
-});
+iniciarServidor();
