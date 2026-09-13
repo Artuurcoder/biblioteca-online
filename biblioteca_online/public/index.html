@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Biblioteca Online</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <header>
+        <h1>Biblioteca Online</h1>
+        <p>Sistema para gerenciamento de livros</p>
+    </header>
+
+    <main>
+
+        <section>
+            <h2>Cadastro de Usuário</h2>
+
+            <input type="text" id="nome" placeholder="Nome">
+
+            <input type="email" id="emailCadastro" placeholder="E-mail">
+
+            <input type="password" id="senhaCadastro" placeholder="Senha">
+
+            <button onclick="cadastrarUsuario()">
+                Cadastrar
+            </button>
+        </section>
+
+        <section>
+            <h2>Login</h2>
+
+            <input type="email" id="emailLogin" placeholder="E-mail">
+
+            <input type="password" id="senhaLogin" placeholder="Senha">
+
+            <button onclick="fazerLogin()">
+                Entrar
+            </button>
+
+            <button onclick="sair()">
+                Sair
+            </button>
+
+            <p id="statusLogin">
+                Usuário não autenticado
+            </p>
+        </section>
+
+        <section>
+            <h2>Cadastrar Livro</h2>
+
+            <input type="text" id="titulo" placeholder="Título">
+
+            <input type="text" id="autor" placeholder="Autor">
+
+            <input type="text" id="categoria" placeholder="Categoria">
+
+            <input type="number" id="ano" placeholder="Ano de publicação">
+
+            <input type="number" id="quantidade" placeholder="Quantidade">
+
+            <button onclick="cadastrarLivro()">
+                Cadastrar Livro
+            </button>
+        </section>
+
+        <section>
+            <h2>Livros Cadastrados</h2>
+
+            <button onclick="carregarLivros()">
+                Atualizar Lista
+            </button>
+
+            <div id="listaLivros"></div>
+        </section>
+
+    </main>
+
+    <script src="app.js"></script>
+
+</body>
+
+</html>

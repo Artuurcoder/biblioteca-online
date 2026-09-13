@@ -5,6 +5,7 @@ const Livro = require("../models/Livro");
 const Usuario = require("../models/Usuario");
 
 const express = require("express");
+const path = require("path");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const swaggerUi = require("swagger-ui-express");
@@ -13,6 +14,12 @@ const swaggerJsdoc = require("swagger-jsdoc");
 const app = express();
 
 app.use(express.json());
+
+app.use(
+  express.static(
+    path.join(__dirname, "../public")
+  )
+);
 
 /* ======================================================
    CONFIGURAÇÃO DO SWAGGER
@@ -86,23 +93,6 @@ function autenticarToken(req, res, next) {
     next();
   });
 }
-
-/* ======================================================
-   ROTA INICIAL
-====================================================== */
-
-/**
- * @swagger
- * /:
- *   get:
- *     summary: Verifica se a API está funcionando
- *     responses:
- *       200:
- *         description: API funcionando
- */
-app.get("/", (req, res) => {
-  res.send("Biblioteca Online funcionando!");
-});
 
 /* ======================================================
    LIVROS
