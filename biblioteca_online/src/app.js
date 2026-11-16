@@ -1,7 +1,5 @@
 require("dotenv").config();
 
-console.log("JWT_SECRET:", process.env.JWT_SECRET);
-
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
