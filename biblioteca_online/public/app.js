@@ -250,9 +250,25 @@ function limparFormularioLivro() {
 }
 
 /* VERIFICAR LOGIN AO ABRIR A PÁGINA */
-if (token) {
-  document.getElementById("statusLogin").innerText = "Usuário autenticado";
+if (typeof window !== "undefined" && typeof module === "undefined") {
+  if (token) {
+    document.getElementById("statusLogin").innerText = "Usuário autenticado";
+  }
+
+  /* CARREGAR LIVROS AO ABRIR */
+  carregarLivros();
 }
 
-/* CARREGAR LIVROS AO ABRIR */
-carregarLivros();
+/* EXPORTAR FUNÇÕES PARA TESTES */
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    cadastrarUsuario,
+    fazerLogin,
+    sair,
+    cadastrarLivro,
+    carregarLivros,
+    editarLivro,
+    excluirLivro,
+    limparFormularioLivro,
+  };
+}

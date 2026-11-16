@@ -4,6 +4,8 @@ const conectarBanco = require("./config/database");
 const Livro = require("../models/Livro");
 const Usuario = require("../models/Usuario");
 
+const validarLivro = require("./utils/validarLivro");
+
 const express = require("express");
 const path = require("path");
 const bcrypt = require("bcryptjs");
@@ -15,11 +17,7 @@ const app = express();
 
 app.use(express.json());
 
-app.use(
-  express.static(
-    path.join(__dirname, "../public")
-  )
-);
+app.use(express.static(path.join(__dirname, "../public")));
 
 /* ======================================================
    CONFIGURAÇÃO DO SWAGGER
@@ -206,9 +204,11 @@ app.post("/livros", autenticarToken, async (req, res) => {
       quantidade_disponivel,
     } = req.body;
 
-    if (!titulo || !autor) {
+    const validacao = validarLivro(req.body);
+
+    if (!validacao.valido) {
       return res.status(400).json({
-        erro: "Título e autor são obrigatórios",
+        erro: validacao.erro,
       });
     }
 
@@ -271,14 +271,10 @@ app.post("/livros", autenticarToken, async (req, res) => {
  */
 app.put("/livros/:id", autenticarToken, async (req, res) => {
   try {
-    const livro = await Livro.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      {
-        new: true,
-        runValidators: true,
-      }
-    );
+    const livro = await Livro.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true,
+    });
 
     if (!livro) {
       return res.status(404).json({
@@ -448,10 +444,7 @@ app.post("/login", async (req, res) => {
       });
     }
 
-    const senhaValida = await bcrypt.compare(
-      senha,
-      usuario.senha
-    );
+    const senhaValida = await bcrypt.compare(senha, usuario.senha);
 
     if (!senhaValida) {
       return res.status(401).json({
@@ -467,7 +460,7 @@ app.post("/login", async (req, res) => {
       process.env.JWT_SECRET,
       {
         expiresIn: "1h",
-      }
+      },
     );
 
     res.json({
@@ -514,10 +507,17 @@ async function iniciarServidor() {
   await conectarBanco();
 
   app.listen(PORT, () => {
-    console.log(
-      `Servidor rodando em http://localhost:${PORT}`
-    );
+    console.log(`Servidor rodando em http://localhost:${PORT}`);
   });
 }
 
-iniciarServidor();
+// Inicia o servidor apenas quando o arquivo é executado diretamente
+if (require.main === module) {
+  iniciarServidor().catch((erro) => {
+    console.error("Erro ao iniciar servidor:", erro.message);
+    process.exit(1);
+  });
+}
+
+// Exporta o Express para os testes automatizados
+module.exports = app;
