@@ -114,54 +114,61 @@ async function cadastrarLivro() {
 /* LISTAR LIVROS */
 async function carregarLivros() {
   const resposta = await fetch("/livros");
-
   const livros = await resposta.json();
 
   const lista = document.getElementById("listaLivros");
 
-  lista.innerHTML = "";
+  lista.replaceChildren();
+
+  if (!Array.isArray(livros)) {
+    lista.textContent = "Erro ao carregar livros.";
+    return;
+  }
 
   if (livros.length === 0) {
-    lista.innerHTML = "<p>Nenhum livro cadastrado.</p>";
+    const mensagem = document.createElement("p");
+    mensagem.textContent = "Nenhum livro cadastrado.";
+    lista.appendChild(mensagem);
     return;
   }
 
   livros.forEach((livro) => {
     const div = document.createElement("div");
-
     div.className = "livro";
 
-    div.innerHTML = `
-            <h3>${livro.titulo}</h3>
+    const titulo = document.createElement("h3");
+    titulo.textContent = livro.titulo || "";
+    div.appendChild(titulo);
 
-            <p>
-                <strong>Autor:</strong>
-                ${livro.autor}
-            </p>
+    function adicionarCampo(rotulo, valor) {
+      const p = document.createElement("p");
+      const strong = document.createElement("strong");
 
-            <p>
-                <strong>Categoria:</strong>
-                ${livro.categoria || ""}
-            </p>
+      strong.textContent = rotulo;
 
-            <p>
-                <strong>Ano:</strong>
-                ${livro.ano_publicacao || ""}
-            </p>
+      p.appendChild(strong);
+      p.appendChild(document.createTextNode(" " + (valor ?? "")));
 
-            <p>
-                <strong>Quantidade disponível:</strong>
-                ${livro.quantidade_disponivel}
-            </p>
+      div.appendChild(p);
+    }
 
-            <button onclick="editarLivro('${livro._id}')">
-                Editar
-            </button>
+    adicionarCampo("Autor:", livro.autor);
+    adicionarCampo("Categoria:", livro.categoria);
+    adicionarCampo("Ano:", livro.ano_publicacao);
+    adicionarCampo("Quantidade disponível:", livro.quantidade_disponivel);
 
-            <button onclick="excluirLivro('${livro._id}')">
-                Excluir
-            </button>
-        `;
+    const botaoEditar = document.createElement("button");
+    botaoEditar.textContent = "Editar";
+    botaoEditar.type = "button";
+    botaoEditar.onclick = () => editarLivro(livro._id);
+
+    const botaoExcluir = document.createElement("button");
+    botaoExcluir.textContent = "Excluir";
+    botaoExcluir.type = "button";
+    botaoExcluir.onclick = () => excluirLivro(livro._id);
+
+    div.appendChild(botaoEditar);
+    div.appendChild(botaoExcluir);
 
     lista.appendChild(div);
   });

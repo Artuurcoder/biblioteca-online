@@ -65,9 +65,9 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 function autenticarToken(req, res, next) {
   const authHeader = req.headers.authorization;
 
-  if (!authHeader) {
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({
-      erro: "Token não informado",
+      erro: "Token não informado ou formato inválido",
     });
   }
 
@@ -79,17 +79,22 @@ function autenticarToken(req, res, next) {
     });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET, (erro, usuario) => {
-    if (erro) {
-      return res.status(403).json({
-        erro: "Token inválido",
-      });
-    }
+  jwt.verify(
+    token,
+    process.env.JWT_SECRET,
+    { algorithms: ["HS256"] },
+    (erro, usuario) => {
+      if (erro) {
+        return res.status(403).json({
+          erro: "Token inválido ou expirado",
+        });
+      }
 
-    req.usuario = usuario;
+      req.usuario = usuario;
 
-    next();
-  });
+      next();
+    },
+  );
 }
 
 /* ======================================================
@@ -269,12 +274,41 @@ app.post("/livros", autenticarToken, async (req, res) => {
  *       404:
  *         description: Livro não encontrado
  */
+
 app.put("/livros/:id", autenticarToken, async (req, res) => {
   try {
-    const livro = await Livro.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
+    // Campos permitidos para atualização
+    const camposPermitidos = [
+      "titulo",
+      "autor",
+      "categoria",
+      "ano_publicacao",
+      "quantidade_total",
+      "quantidade_disponivel",
+    ];
+
+    // Filtra somente os campos autorizados
+    const dadosAtualizacao = Object.fromEntries(
+      camposPermitidos
+        .filter((campo) => req.body[campo] !== undefined)
+        .map((campo) => [campo, req.body[campo]]),
+    );
+
+    // Impede atualização sem campos válidos
+    if (Object.keys(dadosAtualizacao).length === 0) {
+      return res.status(400).json({
+        erro: "Nenhum campo válido informado para atualização",
+      });
+    }
+
+    const livro = await Livro.findByIdAndUpdate(
+      req.params.id,
+      { $set: dadosAtualizacao },
+      {
+        new: true,
+        runValidators: true,
+      },
+    );
 
     if (!livro) {
       return res.status(404).json({
@@ -460,6 +494,7 @@ app.post("/login", async (req, res) => {
       process.env.JWT_SECRET,
       {
         expiresIn: "1h",
+        algorithm: "HS256",
       },
     );
 
@@ -485,7 +520,8 @@ app.post("/login", async (req, res) => {
  *       200:
  *         description: Usuários retornados com sucesso
  */
-app.get("/usuarios", async (req, res) => {
+
+app.get("/usuarios", autenticarToken, async (req, res) => {
   try {
     const usuarios = await Usuario.find().select("-senha");
 

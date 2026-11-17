@@ -4,9 +4,11 @@ const jwt = require("jsonwebtoken");
 process.env.JWT_SECRET = "chave-exclusiva-para-testes-automatizados";
 
 // Simula o model Livro sem acessar o MongoDB real
+
 jest.mock("../biblioteca_online/models/Livro", () => ({
   find: jest.fn(),
   findById: jest.fn(),
+  findByIdAndUpdate: jest.fn(),
   create: jest.fn(),
 }));
 
@@ -18,7 +20,15 @@ describe("Testes da API Biblioteca Online", () => {
     jest.clearAllMocks();
   });
 
-  // TESTE 1 - LISTAR LIVROS
+  // TESTE 1 - ACESSO À LISTA DE USUÁRIOS SEM TOKEN
+  test("Deve impedir acesso à lista de usuários sem token", async () => {
+    const resposta = await request(app).get("/usuarios");
+
+    expect(resposta.statusCode).toBe(401);
+    expect(resposta.body.erro).toBe("Token não informado ou formato inválido");
+  });
+
+  // TESTE 2 - LISTAR LIVROS
   test("Deve listar os livros com sucesso", async () => {
     Livro.find.mockResolvedValue([
       {
@@ -34,7 +44,7 @@ describe("Testes da API Biblioteca Online", () => {
     expect(resposta.body[0].titulo).toBe("Livro de Teste");
   });
 
-  // TESTE 2 - LIVRO INEXISTENTE
+  // TESTE 3 - LIVRO INEXISTENTE
   test("Deve retornar 404 para livro inexistente", async () => {
     Livro.findById.mockResolvedValue(null);
 
@@ -44,7 +54,7 @@ describe("Testes da API Biblioteca Online", () => {
     expect(resposta.body.erro).toBe("Livro não encontrado");
   });
 
-  // TESTE 3 - CADASTRO SEM AUTENTICACAO
+  // TESTE 4 - CADASTRO SEM AUTENTICAÇÃO
   test("Deve impedir cadastro de livro sem token", async () => {
     const resposta = await request(app).post("/livros").send({
       titulo: "Novo Livro",
@@ -52,10 +62,10 @@ describe("Testes da API Biblioteca Online", () => {
     });
 
     expect(resposta.statusCode).toBe(401);
-    expect(resposta.body.erro).toBe("Token não informado");
+    expect(resposta.body.erro).toBe("Token não informado ou formato inválido");
   });
 
-  // TESTE 4 - CADASTRO COM DADOS VALIDOS
+  // TESTE 5 - CADASTRO COM DADOS VÁLIDOS
   test("Deve cadastrar um livro com dados válidos", async () => {
     const token = jwt.sign({ id: "usuario-teste" }, process.env.JWT_SECRET);
 
@@ -76,7 +86,49 @@ describe("Testes da API Biblioteca Online", () => {
     expect(Livro.create).toHaveBeenCalledTimes(1);
   });
 
-  // TESTE 5 - CADASTRO COM DADOS INCOMPLETOS
+  // TESTE - ATUALIZAÇÃO COM CAMPO NÃO AUTORIZADO
+  test("Deve ignorar campos não permitidos na atualização", async () => {
+    const token = jwt.sign({ id: "usuario-teste" }, process.env.JWT_SECRET);
+
+    Livro.findByIdAndUpdate.mockResolvedValue({
+      titulo: "Livro Atualizado",
+      autor: "Autor Teste",
+    });
+
+    await request(app)
+      .put("/livros/507f1f77bcf86cd799439011")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        titulo: "Livro Atualizado",
+        _id: "id-nao-autorizado",
+      });
+
+    const dadosEnviados = Livro.findByIdAndUpdate.mock.calls[0][1];
+
+    expect(dadosEnviados.$set).toEqual({
+      titulo: "Livro Atualizado",
+    });
+
+    expect(dadosEnviados.$set._id).toBeUndefined();
+  });
+
+  // TESTE - ATUALIZAÇÃO SEM CAMPOS PERMITIDOS
+  test("Deve rejeitar atualização sem campos permitidos", async () => {
+    const token = jwt.sign({ id: "usuario-teste" }, process.env.JWT_SECRET);
+
+    const resposta = await request(app)
+      .put("/livros/507f1f77bcf86cd799439011")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        _id: "id-nao-autorizado",
+      });
+
+    expect(resposta.statusCode).toBe(400);
+
+    expect(Livro.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  // TESTE 6 - CADASTRO COM DADOS INCOMPLETOS
   test("Deve rejeitar livro sem título", async () => {
     const token = jwt.sign({ id: "usuario-teste" }, process.env.JWT_SECRET);
 
