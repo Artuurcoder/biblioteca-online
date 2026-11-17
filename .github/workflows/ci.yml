@@ -1,4 +1,4 @@
-name: CI - Biblioteca Online
+name: CI/CD - Biblioteca Online
 
 on:
   push:
@@ -34,3 +34,19 @@ jobs:
         env:
           NODE_ENV: test
           JWT_SECRET: chave-exclusiva-para-testes-automatizados
+
+  deploy:
+    name: Publicar no Render
+    runs-on: ubuntu-latest
+    needs: testes
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/atividade-nuvem'
+
+    steps:
+      - name: Acionar deploy no Render
+        run: |
+          curl --fail --silent --show-error \
+            --request POST \
+            "$RENDER_DEPLOY_HOOK"
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
