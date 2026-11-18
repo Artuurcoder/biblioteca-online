@@ -35,7 +35,7 @@ jobs:
           NODE_ENV: test
           JWT_SECRET: chave-exclusiva-para-testes-automatizados
 
-    deploy:
+  deploy:
     name: Publicar no Render
     runs-on: ubuntu-latest
     needs: testes
@@ -48,7 +48,7 @@ jobs:
           RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
         run: |
           if [ -z "$RENDER_DEPLOY_HOOK" ]; then
-            echo "Erro: Deploy Hook não configurado."
+            echo "Erro: Deploy Hook nao configurado."
             exit 1
           fi
 
@@ -65,4 +65,4 @@ jobs:
             exit 1
           fi
 
-          echo "Solicitação de deploy aceita pelo Render."
+          echo "Solicitacao de deploy aceita pelo Render."
