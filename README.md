@@ -234,5 +234,5 @@ O código-fonte, os testes automatizados e as configurações do projeto estão 
 
 **Projeto acadêmico — Tecnologia em Sistemas para Internet**
 
-Artur Almeida Nunes e Aleff Felipe de Lima Pereira
+Artur Almeida Nunes
 Polo Apodi/RN
